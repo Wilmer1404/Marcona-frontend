@@ -1,3 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-marcona-500: #0471e6; /* Define aquí tu azul personalizado */
+}
