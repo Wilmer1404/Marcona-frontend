@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// Creamos la instancia principal apuntando a tu backend de Node.js
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // Asegúrate de que tu backend corra en este puerto
+  // ¡Actualizado al puerto 4000!
+  baseURL: 'http://localhost:4000/api', 
   headers: {
     'Content-Type': 'application/json',
   },
