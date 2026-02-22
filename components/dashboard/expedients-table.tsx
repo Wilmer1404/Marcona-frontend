@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Calendar, Filter } from 'lucide-react'
+import { Calendar, Filter, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -22,100 +22,81 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { ExpedientesService } from '@/services/expedientes.service'
 
+// Ajustamos la interfaz a lo que devuelve tu backend real
 interface Expedient {
-  id: string
-  codigo: string
+  id: number
+  codigo_expediente: string
   asunto: string
-  origen: string
-  fecha: string
-  estado: 'pendiente' | 'revision' | 'finalizado'
-  prioridad: 'normal' | 'alta'
-}
-
-const mockExpedients: Expedient[] = [
-  {
-    id: '1',
-    codigo: 'EXP-2024-001',
-    asunto: 'Solicitud de Licencia Municipal',
-    origen: 'Gerencia de Comercio',
-    fecha: '21/02/2024',
-    estado: 'revision',
-    prioridad: 'normal',
-  },
-  {
-    id: '2',
-    codigo: 'EXP-2024-002',
-    asunto: 'Trámite de Registro de Propiedad',
-    origen: 'Gerencia Catastral',
-    fecha: '20/02/2024',
-    estado: 'pendiente',
-    prioridad: 'alta',
-  },
-  {
-    id: '3',
-    codigo: 'EXP-2024-003',
-    asunto: 'Aprobación de Proyecto de Obra',
-    origen: 'Gerencia de Obras',
-    fecha: '19/02/2024',
-    estado: 'finalizado',
-    prioridad: 'normal',
-  },
-  {
-    id: '4',
-    codigo: 'EXP-2024-004',
-    asunto: 'Autorización de Actividad Comercial',
-    origen: 'Gerencia de Comercio',
-    fecha: '18/02/2024',
-    estado: 'revision',
-    prioridad: 'normal',
-  },
-  {
-    id: '5',
-    codigo: 'EXP-2024-005',
-    asunto: 'Solicitud de Servicios Básicos',
-    origen: 'Gerencia de Servicios',
-    fecha: '17/02/2024',
-    estado: 'pendiente',
-    prioridad: 'alta',
-  },
-]
-
-const statusConfig = {
-  pendiente: {
-    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-    label: 'Pendiente',
-  },
-  revision: {
-    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-    label: 'En Revisión',
-  },
-  finalizado: {
-    color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-    label: 'Finalizado',
-  },
+  departamento_origen: string
+  creador: string
+  fecha_creacion: string
+  estado: string
 }
 
 export function ExpedientsTable() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [expedients, setExpedients] = useState(mockExpedients)
+  const [expedients, setExpedients] = useState<Expedient[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
+  // Llamada real al backend cuando el componente se monta
+  useEffect(() => {
+    const fetchExpedientes = async () => {
+      setIsLoading(true)
+      const response = await ExpedientesService.obtenerBandeja()
+      if (response.exito) {
+        setExpedients(response.data)
+      } else {
+        console.error("No se pudo cargar la bandeja")
+      }
+      setIsLoading(false)
+    }
+
+    fetchExpedientes()
+  }, [])
+
+  // Lógica de filtrado con los nuevos nombres de propiedades
   const filteredExpedients = expedients.filter((exp) => {
+    // Protección contra nulos
+    const codigo = exp.codigo_expediente || '';
+    const asunto = exp.asunto || '';
+    const origen = exp.departamento_origen || '';
+    const estado = exp.estado || '';
+
     const matchesSearch =
-      exp.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exp.asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exp.origen.toLowerCase().includes(searchTerm.toLowerCase())
+      codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      origen.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus =
-      statusFilter === 'all' || exp.estado === statusFilter
+      statusFilter === 'all' || estado.toLowerCase() === statusFilter.toLowerCase()
 
     return matchesSearch && matchesStatus
   })
 
+  // Función dinámica para los colores según la base de datos
+  const getStatusConfig = (estado: string) => {
+    const estadoLimpio = estado ? estado.toLowerCase() : 'desconocido'
+    
+    switch (estadoLimpio) {
+      case 'pendiente':
+        return { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', label: 'Pendiente' }
+      case 'en proceso':
+      case 'revision':
+      case 'en revisión':
+        return { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'En Revisión' }
+      case 'finalizado':
+        return { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', label: 'Finalizado' }
+      default:
+        return { color: 'bg-gray-100 text-gray-800', label: estado || 'Sin estado' }
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {/* Filtros */}
+      {/* Filtros (Se mantienen idénticos) */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
         <div className="flex-1">
           <label className="text-sm font-medium text-foreground block mb-2">
@@ -140,16 +121,13 @@ export function ExpedientsTable() {
             <SelectContent>
               <SelectItem value="all">Todos los estados</SelectItem>
               <SelectItem value="pendiente">Pendiente</SelectItem>
-              <SelectItem value="revision">En Revisión</SelectItem>
+              <SelectItem value="en proceso">En Revisión</SelectItem>
               <SelectItem value="finalizado">Finalizado</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        <Button
-          variant="outline"
-          className="gap-2 border-border"
-        >
+        <Button variant="outline" className="gap-2 border-border">
           <Filter className="h-4 w-4" />
           Más filtros
         </Button>
@@ -170,9 +148,18 @@ export function ExpedientsTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredExpedients.length > 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+                      <p>Cargando expedientes de la base de datos...</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredExpedients.length > 0 ? (
                 filteredExpedients.map((expedient) => {
-                  const statusConfig_item = statusConfig[expedient.estado]
+                  const statusInfo = getStatusConfig(expedient.estado)
 
                   return (
                     <TableRow
@@ -180,26 +167,29 @@ export function ExpedientsTable() {
                       className="hover:bg-muted/30 border-b border-border"
                     >
                       <TableCell className="font-mono text-sm font-semibold text-primary">
-                        {expedient.codigo}
+                        {expedient.codigo_expediente}
                       </TableCell>
                       <TableCell className="font-medium text-foreground">
                         {expedient.asunto}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {expedient.origen}
+                        <div className="flex flex-col">
+                          <span>{expedient.departamento_origen}</span>
+                          <span className="text-xs opacity-70">{expedient.creador}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
-                        {expedient.fecha}
+                        {new Date(expedient.fecha_creacion).toLocaleDateString('es-PE')}
                       </TableCell>
                       <TableCell>
                         <Badge
                           className={cn(
-                            statusConfig_item.color,
+                            statusInfo.color,
                             'font-medium border-0'
                           )}
                         >
-                          {statusConfig_item.label}
+                          {statusInfo.label}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -226,7 +216,7 @@ export function ExpedientsTable() {
 
       {/* Info */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>Mostrando {filteredExpedients.length} de {expedients.length} expedientes</span>
+        <span>Mostrando {filteredExpedients.length} de {expedients.length} expedientes reales</span>
       </div>
     </div>
   )
