@@ -1,17 +1,22 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation' // <-- Importante para redirigir en Next.js
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { useAuth } from '@/contexts/auth-context' // <-- Traemos nuestro "cerebro" de autenticación
 
 export function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  const { login } = useAuth() // Extraemos la función real que conecta al backend
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,13 +29,18 @@ export function LoginForm() {
     setIsLoading(true)
     
     try {
-      // Simulación de autenticación
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      toast.success(`Bienvenido ${email}`)
-      setEmail('')
-      setPassword('')
+      // Llamada REAL a nuestra API de Node.js + PostgreSQL
+      const result = await login(email, password)
+
+      if (result.success) {
+        toast.success('¡Bienvenido al sistema!')
+        router.push('/dashboard') // Nos vamos al panel principal
+      } else {
+        // Si el backend responde con error (ej. contraseña incorrecta)
+        toast.error(result.mensaje || 'Credenciales incorrectas')
+      }
     } catch (error) {
-      toast.error('Error en el inicio de sesión')
+      toast.error('Error de conexión con el servidor')
     } finally {
       setIsLoading(false)
     }
@@ -47,7 +57,7 @@ export function LoginForm() {
           <Input
             id="email"
             type="email"
-            placeholder="tu@email.com"
+            placeholder="jrodriguez@marcona.gob.pe" // Un guiño a nuestro usuario de prueba
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={isLoading}
@@ -91,18 +101,8 @@ export function LoginForm() {
         disabled={isLoading}
         className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-11 font-semibold shadow-lg hover:shadow-xl transition-all"
       >
-        {isLoading ? 'Iniciando sesión...' : 'Ingresar'}
+        {isLoading ? 'Conectando...' : 'Ingresar'}
       </Button>
-
-      <p className="text-center text-sm text-muted-foreground">
-        ¿Olvidaste tu contraseña?{' '}
-        <button
-          type="button"
-          className="text-primary hover:underline font-medium"
-        >
-          Recupérala aquí
-        </button>
-      </p>
     </form>
   )
 }
