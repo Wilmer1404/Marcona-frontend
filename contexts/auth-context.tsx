@@ -1,11 +1,12 @@
-"use client"; // Muy importante en Next.js para usar useState y useEffect
+"use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import api from "@/lib/api/axios"; // Ajusta la ruta si es necesario
+import api from "@/lib/api/axios";
 
-// Definimos la forma de nuestros datos (TypeScript)
+// 1. Interfaz que refleja EXACTAMENTE tu tabla "usuarios" de PostgreSQL
 interface User {
   id: number;
+  dni: string;
   nombres: string;
   apellidos: string;
   correo: string;
@@ -26,7 +27,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Al recargar la página, verificamos si ya había un usuario guardado
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedUser = localStorage.getItem("user");
@@ -40,20 +40,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (correo: string, password: string) => {
     try {
-      // Llamamos a nuestro backend en Node.js
       const response = await api.post("/auth/login", { correo, password });
       
       if (response.data.exito) {
         const { token, usuario } = response.data;
-        // Guardamos en el navegador
+        
+        // NORMALIZACIÓN: Garantizamos que 'id' y 'departamento_id' existan siempre
+        const usuarioSeguro: User = {
+          ...usuario,
+          id: usuario.id || usuario.id_usuario,
+          departamento_id: usuario.departamento_id || usuario.id_departamento
+        };
+
         localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(usuario));
-        setUser(usuario);
+        localStorage.setItem("user", JSON.stringify(usuarioSeguro));
+        setUser(usuarioSeguro);
+        
         return { success: true };
       }
       return { success: false, mensaje: response.data.mensaje };
     } catch (error: any) {
-      console.error("Error en login:", error);
       return { 
         success: false, 
         mensaje: error.response?.data?.mensaje || "Error de conexión con el servidor" 
@@ -65,18 +71,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);
-    // Redirigir al login usando window.location para forzar limpieza de estado
     window.location.href = "/login";
   };
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>
-      {!loading ? children : null} {/* Evitamos parpadeos mientras carga */}
+      {!loading ? children : null}
     </AuthContext.Provider>
   );
 }
 
-// Hook personalizado para usar este contexto fácilmente
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

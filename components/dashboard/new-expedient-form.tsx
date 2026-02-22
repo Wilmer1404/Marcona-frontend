@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { Upload, Check, ChevronRight, ChevronLeft, File } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Upload, Check, ChevronRight, ChevronLeft, File, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,20 +17,34 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
+import { ExpedientesService } from '@/services/expedientes.service'
+import { DepartamentosService, type Departamento } from '@/services/expedientes.service'
+import { useAuth } from '@/contexts/auth-context'
 
 type Step = 'datos' | 'departamento' | 'archivo'
 
 export function NewExpedientForm() {
+  const router = useRouter()
+  
+  // 2. EXTRAEMOS AL USUARIO LOGUEADO
+  const { user } = useAuth() 
+
   const [currentStep, setCurrentStep] = useState<Step>('datos')
-  const [files, setFiles] = useState<File[]>([])
-
-  // Step 1: Datos
+  const [isLoading, setIsLoading] = useState(false)
+  const [archivo, setArchivo] = useState<File | null>(null)
   const [asunto, setAsunto] = useState('')
-  const [tipo, setTipo] = useState('')
   const [prioridad, setPrioridad] = useState('normal')
+  const [departamentoDestino, setDepartamentoDestino] = useState('')
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([])
+  const [loadingDepts, setLoadingDepts] = useState(true)
 
-  // Step 2: Departamento
-  const [departamento, setDepartamento] = useState('')
+  // cargamos los departamentos al montar el componente
+  useEffect(() => {
+    DepartamentosService.listar().then((data) => {
+      setDepartamentos(data)
+      setLoadingDepts(false)
+    })
+  }, [])
 
   const steps: { id: Step; label: string; number: number }[] = [
     { id: 'datos', label: 'Datos del Documento', number: 1 },
@@ -42,14 +57,14 @@ export function NewExpedientForm() {
 
   const handleNext = () => {
     if (currentStep === 'datos') {
-      if (!asunto || !tipo) {
-        toast.error('Por favor completa todos los campos')
+      if (!asunto) {
+        toast.error('Por favor ingresa el asunto del expediente')
         return
       }
       setCurrentStep('departamento')
     } else if (currentStep === 'departamento') {
-      if (!departamento) {
-        toast.error('Por favor selecciona un departamento')
+      if (!departamentoDestino) {
+        toast.error('Por favor selecciona un departamento de destino')
         return
       }
       setCurrentStep('archivo')
@@ -64,27 +79,61 @@ export function NewExpedientForm() {
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFiles(Array.from(e.target.files))
+    if (e.target.files && e.target.files.length > 0) {
+      setArchivo(e.target.files[0])
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // --- CONEXIÓN REAL AL BACKEND ---
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (files.length === 0) {
-      toast.error('Por favor adjunta al menos un archivo')
+    
+    // 1. Validaciones estrictas
+    if (!user || !user.id) {
+      toast.error('Error de sesión. Por favor cierra sesión y vuelve a ingresar.')
       return
     }
-    toast.success('Expediente creado exitosamente')
-    setAsunto('')
-    setTipo('')
-    setDepartamento('')
-    setFiles([])
-    setCurrentStep('datos')
-  }
 
+    if (!user.departamento_id) {
+      toast.error('Tu usuario no tiene un departamento asignado en el sistema. No puedes crear expedientes.')
+      setIsLoading(false)
+      return
+    }
+
+    if (!archivo) {
+      toast.error('Por favor adjunta el documento PDF principal')
+      return
+    }
+
+    setIsLoading(true)
+
+    // 2. Construcción del paquete con los campos EXACTOS que pide tu BD
+    const formData = new FormData()
+    formData.append('asunto', asunto)
+    formData.append('departamento_destino_id', departamentoDestino)
+    formData.append('tipo_origen', 'INTERNO') 
+    formData.append('usuario_creador_id', user.id.toString())
+    formData.append('departamento_origen_id', user.departamento_id.toString())
+    
+    // NOTA: No enviamos 'prioridad' porque no existe en tu tabla 'expedientes'
+    
+    formData.append('archivo_adjunto', archivo) // El nombre exacto del multer
+
+    // 3. Envío al backend
+    const result = await ExpedientesService.crearExpediente(formData)
+
+    if (result.exito) {
+      toast.success('Expediente creado y derivado con éxito')
+      router.push('/dashboard') 
+    } else {
+      toast.error(result.mensaje || 'Hubo un problema al procesar el expediente')
+    }
+
+    setIsLoading(false)
+  }
+  
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl mx-auto">
       {/* Indicador de progreso */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
@@ -93,86 +142,42 @@ export function NewExpedientForm() {
             Paso {currentStepIndex + 1} de {steps.length}
           </span>
         </div>
-        <Progress value={progress} className="h-2" />
-      </div>
-
-      {/* Indicadores de pasos */}
-      <div className="flex justify-between gap-2">
-        {steps.map((step, index) => (
-          <div key={step.id} className="flex items-center gap-2 flex-1">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
-                index <= currentStepIndex
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
-              }`}
-            >
-              {index < currentStepIndex ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                step.number
-              )}
-            </div>
-            {index < steps.length - 1 && (
-              <div
-                className={`h-1 flex-1 rounded-full transition-all ${
-                  index < currentStepIndex
-                    ? 'bg-primary'
-                    : 'bg-muted'
-                }`}
-              />
-            )}
-          </div>
-        ))}
+        <Progress value={progress} className="h-2 transition-all duration-500" />
       </div>
 
       {/* Formulario */}
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Step 1: Datos */}
         {currentStep === 'datos' && (
-          <Card className="p-6 border border-border space-y-4">
+          <Card className="p-6 border border-border space-y-4 animate-in fade-in slide-in-from-right-4">
             <div>
               <Label htmlFor="asunto" className="text-sm font-medium">
-                Asunto del Expediente
+                Asunto del Expediente <span className="text-red-500">*</span>
               </Label>
-              <Input
+              <Textarea
                 id="asunto"
-                placeholder="Ej: Solicitud de Licencia Municipal"
+                placeholder="Ej: Solicitud de Licencia Municipal para Local Comercial..."
                 value={asunto}
                 onChange={(e) => setAsunto(e.target.value)}
-                className="mt-1.5 bg-background border-border"
+                className="mt-1.5 bg-background border-border resize-none"
+                rows={3}
+                disabled={isLoading}
               />
-            </div>
-
-            <div>
-              <Label htmlFor="tipo" className="text-sm font-medium">
-                Tipo de Documento
-              </Label>
-              <Select value={tipo} onValueChange={setTipo}>
-                <SelectTrigger className="mt-1.5 bg-background border-border">
-                  <SelectValue placeholder="Selecciona un tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="solicitud">Solicitud</SelectItem>
-                  <SelectItem value="tramite">Trámite</SelectItem>
-                  <SelectItem value="informe">Informe</SelectItem>
-                  <SelectItem value="aprobacion">Aprobación</SelectItem>
-                  <SelectItem value="autorizacion">Autorización</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <div>
               <Label htmlFor="prioridad" className="text-sm font-medium">
                 Prioridad
               </Label>
-              <Select value={prioridad} onValueChange={setPrioridad}>
+              <Select value={prioridad} onValueChange={setPrioridad} disabled={isLoading}>
                 <SelectTrigger className="mt-1.5 bg-background border-border">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="baja">Baja</SelectItem>
                   <SelectItem value="normal">Normal</SelectItem>
                   <SelectItem value="alta">Alta</SelectItem>
+                  <SelectItem value="urgente">Urgente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -181,26 +186,28 @@ export function NewExpedientForm() {
 
         {/* Step 2: Departamento */}
         {currentStep === 'departamento' && (
-          <Card className="p-6 border border-border space-y-4">
+          <Card className="p-6 border border-border space-y-4 animate-in fade-in slide-in-from-right-4">
             <div>
               <Label htmlFor="departamento" className="text-sm font-medium">
-                Selecciona Departamento de Destino
+                Selecciona Departamento de Destino <span className="text-red-500">*</span>
               </Label>
-              <Select value={departamento} onValueChange={setDepartamento}>
+              <Select value={departamentoDestino} onValueChange={setDepartamentoDestino} disabled={isLoading || loadingDepts}>
                 <SelectTrigger className="mt-1.5 bg-background border-border">
-                  <SelectValue placeholder="Selecciona un departamento" />
+                  <SelectValue placeholder={loadingDepts ? 'Cargando...' : 'Selecciona el área a derivar...'} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gerencia-comercio">Gerencia de Comercio</SelectItem>
-                  <SelectItem value="gerencia-catastral">Gerencia Catastral</SelectItem>
-                  <SelectItem value="gerencia-obras">Gerencia de Obras</SelectItem>
-                  <SelectItem value="gerencia-servicios">Gerencia de Servicios</SelectItem>
-                  <SelectItem value="gerencia-rh">Gerencia de RRHH</SelectItem>
-                  <SelectItem value="gerencia-legal">Gerencia Legal</SelectItem>
+                  {departamentos.map((dept) => (
+                    <SelectItem key={dept.id} value={String(dept.id)}>
+                      {dept.nombre} ({dept.siglas})
+                    </SelectItem>
+                  ))}
+                  {!loadingDepts && departamentos.length === 0 && (
+                    <SelectItem value="" disabled>No hay departamentos disponibles</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-2">
-                El documento será enviado al departamento seleccionado
+                El documento será enviado al departamento seleccionado para su atención.
               </p>
             </div>
           </Card>
@@ -208,47 +215,50 @@ export function NewExpedientForm() {
 
         {/* Step 3: Archivo */}
         {currentStep === 'archivo' && (
-          <Card className="p-6 border border-border space-y-4">
+          <Card className="p-6 border border-border space-y-4 animate-in fade-in slide-in-from-right-4">
             <div>
               <Label className="text-sm font-medium block mb-4">
-                Adjuntar Archivos PDF
+                Adjuntar Archivo PDF Principal <span className="text-red-500">*</span>
               </Label>
-              <label className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all">
+              <label className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all block">
                 <input
                   type="file"
-                  multiple
                   accept=".pdf"
                   onChange={handleFileChange}
                   className="hidden"
+                  disabled={isLoading}
                 />
                 <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm font-medium text-foreground">
-                  Arrastra archivos o haz clic para seleccionar
+                  Arrastra tu archivo o haz clic para seleccionar
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Solo se aceptan archivos PDF
+                  Solo se acepta 1 archivo PDF (Max 10MB)
                 </p>
               </label>
             </div>
 
-            {files.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Archivos Adjuntos</Label>
-                <div className="space-y-2">
-                  {files.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg"
-                    >
-                      <File className="h-4 w-4 text-primary flex-shrink-0" />
-                      <span className="text-sm text-foreground flex-1 truncate">
-                        {file.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {(file.size / 1024).toFixed(2)} KB
-                      </span>
-                    </div>
-                  ))}
+            {archivo && (
+              <div className="space-y-2 animate-in fade-in zoom-in duration-300">
+                <Label className="text-sm font-medium">Archivo seleccionado</Label>
+                <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
+                  <File className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-foreground flex-1 truncate">
+                    {archivo.name}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {(archivo.size / 1024 / 1024).toFixed(2)} MB
+                  </span>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 ml-2"
+                    onClick={() => setArchivo(null)}
+                    disabled={isLoading}
+                  >
+                    Quitar
+                  </Button>
                 </div>
               </div>
             )}
@@ -256,12 +266,12 @@ export function NewExpedientForm() {
         )}
 
         {/* Botones de navegación */}
-        <div className="flex justify-between gap-4">
+        <div className="flex justify-between gap-4 pt-4">
           <Button
             type="button"
             variant="outline"
             onClick={handlePrevious}
-            disabled={currentStepIndex === 0}
+            disabled={currentStepIndex === 0 || isLoading}
             className="gap-2 border-border"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -272,7 +282,7 @@ export function NewExpedientForm() {
             <Button
               type="button"
               onClick={handleNext}
-              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground ml-auto"
+              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Siguiente
               <ChevronRight className="h-4 w-4" />
@@ -280,10 +290,20 @@ export function NewExpedientForm() {
           ) : (
             <Button
               type="submit"
-              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground ml-auto"
+              disabled={isLoading || !archivo}
+              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground min-w-[150px]"
             >
-              <Check className="h-4 w-4" />
-              Crear Expediente
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  Crear Expediente
+                </>
+              )}
             </Button>
           )}
         </div>

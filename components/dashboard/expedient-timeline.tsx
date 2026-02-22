@@ -1,130 +1,93 @@
 'use client'
 
-import { CheckCircle, Clock, MessageSquare } from 'lucide-react'
+import { CheckCircle, Clock, MessageSquare, ArrowRight, FileText } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-interface TimelineEvent {
-  id: string
-  type: 'created' | 'moved' | 'reviewed' | 'commented'
-  title: string
-  description: string
-  actor: string
-  department: string
-  timestamp: string
-  comment?: string
+export interface MovimientoHistorial {
+  id: number
+  accion: string
+  descripcion: string
+  fecha_movimiento: string
+  usuario: string
+  departamento: string
+  siglas: string
 }
 
-const mockEvents: TimelineEvent[] = [
-  {
-    id: '1',
-    type: 'created',
-    title: 'Expediente Creado',
-    description: 'Se creó el expediente inicial',
-    actor: 'Juan Pérez',
-    department: 'Gerencia de Comercio',
-    timestamp: '21/02/2024 - 10:30 AM',
-  },
-  {
-    id: '2',
-    type: 'moved',
-    title: 'Derivado a Revisión',
-    description: 'Documento enviado para revisión inicial',
-    actor: 'Admin Sistema',
-    department: 'Gerencia de Obras',
-    timestamp: '21/02/2024 - 11:15 AM',
-  },
-  {
-    id: '3',
-    type: 'reviewed',
-    title: 'En Revisión',
-    description: 'Revisión técnica del documento',
-    actor: 'María González',
-    department: 'Gerencia de Obras',
-    timestamp: '21/02/2024 - 14:45 PM',
-    comment: 'Se requieren ajustes en la documentación técnica',
-  },
-  {
-    id: '4',
-    type: 'commented',
-    title: 'Comentario Agregado',
-    description: 'Se agregó un comentario al expediente',
-    actor: 'Carlos López',
-    department: 'Gerencia Legal',
-    timestamp: '21/02/2024 - 16:20 PM',
-    comment: 'Aprobado legalmente. Proceder con trámite administrativo',
-  },
-]
-
-const typeConfig = {
-  created: {
-    icon: CheckCircle,
-    color: 'text-green-600 dark:text-green-400',
-    bgColor: 'bg-green-100/10 dark:bg-green-900/20',
-  },
-  moved: {
-    icon: Clock,
-    color: 'text-primary',
-    bgColor: 'bg-primary/10',
-  },
-  reviewed: {
-    icon: Clock,
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-100/10 dark:bg-blue-900/20',
-  },
-  commented: {
-    icon: MessageSquare,
-    color: 'text-purple-600 dark:text-purple-400',
-    bgColor: 'bg-purple-100/10 dark:bg-purple-900/20',
-  },
+// icono y color segun la accion real del schema
+const getConfig = (accion: string) => {
+  switch (accion) {
+    case 'CREADO':
+      return { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-100/20 dark:bg-green-900/20', label: 'Expediente Creado' }
+    case 'DERIVADO':
+      return { icon: ArrowRight, color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-100/20 dark:bg-blue-900/20', label: 'Derivado' }
+    case 'DOCUMENTO_AGREGADO':
+      return { icon: FileText, color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-100/20 dark:bg-purple-900/20', label: 'Documento Agregado' }
+    case 'ESTADO_ACTUALIZADO':
+      return { icon: Clock, color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-100/20 dark:bg-orange-900/20', label: 'Estado Actualizado' }
+    case 'FINALIZADO':
+      return { icon: CheckCircle, color: 'text-primary', bgColor: 'bg-primary/10', label: 'Finalizado' }
+    default:
+      return { icon: Clock, color: 'text-muted-foreground', bgColor: 'bg-muted/20', label: accion }
+  }
 }
 
-export function ExpedientTimeline() {
+interface Props {
+  historial: MovimientoHistorial[]
+}
+
+export function ExpedientTimeline({ historial }: Props) {
+  if (!historial || historial.length === 0) {
+    return (
+      <Card className="p-8 text-center border border-border">
+        <p className="text-muted-foreground">No hay movimientos registrados para este expediente.</p>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-4">
-      {mockEvents.map((event, index) => {
-        const config = typeConfig[event.type]
+      {historial.map((mov, index) => {
+        const config = getConfig(mov.accion)
         const Icon = config.icon
+        const fecha = new Date(mov.fecha_movimiento)
+        const fechaFormato = fecha.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        const horaFormato = fecha.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
 
         return (
-          <div key={event.id} className="flex gap-4">
-            {/* Línea vertical y punto */}
+          <div key={mov.id} className="flex gap-4">
+            {/* punto + línea vertical */}
             <div className="flex flex-col items-center">
               <div className={cn('p-3 rounded-full', config.bgColor)}>
                 <Icon className={cn('h-5 w-5', config.color)} />
               </div>
-              {index < mockEvents.length - 1 && (
-                <div className="w-1 h-12 bg-border mt-2"></div>
+              {index < historial.length - 1 && (
+                <div className="w-1 h-12 bg-border mt-2" />
               )}
             </div>
 
-            {/* Contenido */}
-            <Card className="flex-1 p-4 border border-border hover:shadow-md transition-shadow">
+            {/* tarjeta del movimiento */}
+            <Card className="flex-1 p-4 border border-border hover:shadow-md transition-shadow mb-1">
               <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h4 className="font-semibold text-foreground">{event.title}</h4>
-                  <p className="text-sm text-muted-foreground">{event.description}</p>
-                </div>
+                <h4 className="font-semibold text-foreground">{config.label}</h4>
+                <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
+                  {fechaFormato} — {horaFormato}
+                </span>
               </div>
 
-              <div className="flex flex-col gap-2 mb-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="border-border text-xs">
-                    {event.actor}
-                  </Badge>
+              <p className="text-sm text-foreground mb-3">{mov.descripcion}</p>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="border-border text-xs">
+                  {mov.usuario || 'Sistema'}
+                </Badge>
+                {mov.departamento && (
                   <Badge variant="secondary" className="text-xs bg-primary/10 text-primary hover:bg-primary/20">
-                    {event.department}
+                    {mov.departamento} {mov.siglas ? `(${mov.siglas})` : ''}
                   </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">{event.timestamp}</p>
+                )}
               </div>
-
-              {event.comment && (
-                <div className="p-3 bg-muted/50 rounded-md border-l-2 border-primary">
-                  <p className="text-sm text-foreground italic">"{event.comment}"</p>
-                </div>
-              )}
             </Card>
           </div>
         )

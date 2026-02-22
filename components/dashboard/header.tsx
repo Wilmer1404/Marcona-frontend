@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, Bell, User } from 'lucide-react'
+import { Search, Bell, User, LogOut, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -11,8 +11,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useAuth } from '@/contexts/auth-context'
 
 export function Header() {
+  const { user, logout } = useAuth()
+
+  // cierra sesion y limpia todo el almacenamiento del navegador
+  const handleLogout = () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    logout()
+  }
+
+  const nombreCompleto = user ? `${user.nombres} ${user.apellidos}` : 'Usuario'
+  const rolDisplay = user?.rol || ''
+
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur-sm h-16 flex items-center justify-between px-4 lg:px-8 gap-4">
       {/* Buscador global */}
@@ -54,18 +67,28 @@ export function Header() {
                 <User className="h-4 w-4 text-primary" />
               </div>
               <div className="hidden sm:flex flex-col items-start">
-                <span className="text-sm font-medium">Admin</span>
-                <span className="text-xs text-muted-foreground">Gerencia</span>
+                <span className="text-sm font-medium">{nombreCompleto}</span>
+                <span className="text-xs text-muted-foreground capitalize">{rolDisplay.toLowerCase()}</span>
               </div>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Perfil</DropdownMenuItem>
-            <DropdownMenuItem>Configuración</DropdownMenuItem>
+            <DropdownMenuItem>
+              <User className="mr-2 h-4 w-4" />
+              Perfil
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Settings className="mr-2 h-4 w-4" />
+              Configuración
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600 cursor-pointer">
+            <DropdownMenuItem
+              className="text-red-600 cursor-pointer focus:text-red-600 focus:bg-red-50"
+              onClick={handleLogout}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
               Cerrar sesión
             </DropdownMenuItem>
           </DropdownMenuContent>

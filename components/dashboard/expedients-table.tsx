@@ -71,24 +71,27 @@ export function ExpedientsTable() {
       origen.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus =
-      statusFilter === 'all' || estado.toLowerCase() === statusFilter.toLowerCase()
+      statusFilter === 'all' || (exp.estado || '').toUpperCase() === statusFilter.toUpperCase()
 
     return matchesSearch && matchesStatus
   })
 
-  // Función dinámica para los colores según la base de datos
+  // colores segun los estados reales del schema de la base de datos
   const getStatusConfig = (estado: string) => {
-    const estadoLimpio = estado ? estado.toLowerCase() : 'desconocido'
-    
-    switch (estadoLimpio) {
-      case 'pendiente':
-        return { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', label: 'Pendiente' }
-      case 'en proceso':
-      case 'revision':
-      case 'en revisión':
-        return { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'En Revisión' }
-      case 'finalizado':
+    const e = estado ? estado.toUpperCase() : ''
+    switch (e) {
+      case 'REGISTRADO':
+        return { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', label: 'Registrado' }
+      case 'EN_PROCESO':
+        return { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'En Proceso' }
+      case 'DERIVADO':
+        return { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300', label: 'Derivado' }
+      case 'OBSERVADO':
+        return { color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300', label: 'Observado' }
+      case 'FINALIZADO':
         return { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', label: 'Finalizado' }
+      case 'ARCHIVADO':
+        return { color: 'bg-gray-100 text-gray-700 dark:bg-gray-800/30 dark:text-gray-300', label: 'Archivado' }
       default:
         return { color: 'bg-gray-100 text-gray-800', label: estado || 'Sin estado' }
     }
@@ -120,9 +123,12 @@ export function ExpedientsTable() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="pendiente">Pendiente</SelectItem>
-              <SelectItem value="en proceso">En Revisión</SelectItem>
-              <SelectItem value="finalizado">Finalizado</SelectItem>
+              <SelectItem value="REGISTRADO">Registrado</SelectItem>
+              <SelectItem value="EN_PROCESO">En Proceso</SelectItem>
+              <SelectItem value="DERIVADO">Derivado</SelectItem>
+              <SelectItem value="OBSERVADO">Observado</SelectItem>
+              <SelectItem value="FINALIZADO">Finalizado</SelectItem>
+              <SelectItem value="ARCHIVADO">Archivado</SelectItem>
             </SelectContent>
           </Select>
         </div>
